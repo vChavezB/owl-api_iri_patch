@@ -1,0 +1,67 @@
+diff --git a/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/OWLRDFConsumer.java b/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/OWLRDFConsumer.java
+index 0e272a38b7..655d3afecf 100644
+--- a/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/OWLRDFConsumer.java
++++ b/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/OWLRDFConsumer.java
+@@ -245,6 +245,8 @@ public class OWLRDFConsumer
+      * IRIs that had a type triple to owl:Ontology
+      */
+     private final Set<IRI> ontologyIRIs = createSet();
++    /** IRIs that represent a subject for predicate owl:imports  */
++    private final Set<IRI> ontologySubImportIRIs = createSet();
+     /**
+      * IRIs that had a type triple to owl:Restriction
+      */
+@@ -1467,7 +1469,8 @@ private void chooseAndSetOntologyIRI() {
+             // Choose one that isn't the object of an annotation assertion
+             Set<IRI> candidateIRIs = createSet(ontologyIRIs);
+             ontology.annotations().forEach(a -> a.getValue().asIRI().ifPresent(iri -> {
+-                if (ontologyIRIs.contains(iri)) {
++                if (ontologyIRIs.contains(iri)
++                    && !ontologySubImportIRIs.contains(iri)) {
+                     candidateIRIs.remove(iri);
+                 }
+             }));
+@@ -2212,14 +2215,29 @@ protected void addFirst(IRI subject, OWLLiteral object) {
+      * Adds the ontology.
+      *
+      * @param iri the iri
++     * @param owlImportSubject Is the iri used as subject for predicate
++     *                         owl:imports
+      */
+-    protected void addOntology(IRI iri) {
++    protected void addOntology(IRI iri, boolean owlImportSubject) {
+         if (ontologyIRIs.isEmpty()) {
+             firstOntologyIRI = iri;
+         }
++        if (owlImportSubject) {
++            ontologySubImportIRIs.add(iri);
++        }
+         ontologyIRIs.add(iri);
+     }
+ 
++    /**
++     * Overload method of addOntology with
++     * no owl:import subject iri
++     *
++     * @param iri the iri
++     */
++    protected void addOntology(IRI iri) {
++        addOntology(iri, false);
++    }
++
+     /**
+      * Adds the ontology version.
+      * 
+diff --git a/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/TripleHandlers.java b/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/TripleHandlers.java
+index e4d4ac1769..daf967e1a8 100644
+--- a/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/TripleHandlers.java
++++ b/parsers/src/main/java/org/semanticweb/owlapi/rdf/rdfxml/parser/TripleHandlers.java
+@@ -1541,7 +1541,7 @@ public boolean canHandleStreaming(IRI s, IRI p, IRI o) {
+         @Override
+         public void handleTriple(IRI s, IRI p, IRI o) {
+             consume(s, p, o);
+-            consumer.addOntology(s);
++            consumer.addOntology(s, true);
+             consumer.addOntology(o);
+             OWLImportsDeclaration id = df.getOWLImportsDeclaration(o);
+             consumer.addImport(id);
